@@ -1339,47 +1339,6 @@ export default function App() {
                 {lang === 'UA' ? "Статистика оновлюється в кінці кожного раунду" : "Статистика обновляется в конце каждого раунда"}
               </div>
             )}
-
-            {/* Today's Friends Grids */}
-            <div className="mt-6 pt-4 border-t border-neutral-100 dark:border-neutral-800">
-              <h4 className="font-bold text-xs mb-3 tracking-wide uppercase opacity-70 flex items-center gap-1.5">
-                <Users className="w-4 h-4 text-emerald-500" />
-                {lang === 'UA' ? "Сьогоднішні сітки друзів" : "Сегодняшние сетки друзей"}
-              </h4>
-
-              {!isDailyGameCompleted(lang) ? (
-                <div className="p-5 rounded-2xl border border-dashed border-neutral-200 dark:border-neutral-800 text-center text-xs opacity-70 flex flex-col items-center gap-2 bg-neutral-50 dark:bg-neutral-900/45">
-                  <Lock className="w-5 h-5 text-amber-500 animate-pulse" />
-                  <span className="font-bold">
-                    {lang === 'UA'
-                      ? "Спершу пройдіть сьогоднішнє слово дня! 🔒"
-                      : "Сначала пройдите сегодняшнее слово дня! 🔒"}
-                  </span>
-                  <p className="text-[10px] opacity-60">
-                    {lang === 'UA'
-                      ? "Сітки інших гравців відкриються після закінчення вашої гри."
-                      : "Сетки других игроков откроются после окончания вашей игры."}
-                  </p>
-                </div>
-              ) : friendsResults.filter(r => r.lang === lang).length === 0 ? (
-                <div className="p-4 rounded-xl border border-dashed border-neutral-200 dark:border-neutral-800 text-center text-xs opacity-60">
-                  {lang === 'UA'
-                    ? "Інші гравці ще не закінчили сьогоднішню гру для цієї мови ⏳"
-                    : "Другие игроки еще не закончили сегодняшнюю игру для этого языка ⏳"}
-                </div>
-              ) : (
-                <div className="grid grid-cols-2 xs:grid-cols-3 gap-2">
-                  {friendsResults.filter(r => r.lang === lang).map((player, idx) => (
-                    <MiniFriendGrid 
-                      key={idx} 
-                      player={player} 
-                      isDarkMode={isDarkMode} 
-                      lang={lang} 
-                    />
-                  ))}
-                </div>
-              )}
-            </div>
           </div>
         </div>
       )}
