@@ -106,3 +106,55 @@
   transition: opacity 200ms ease-out, transform 200ms ease-out;
 }
 
+/* Force prevent any page-level scrolling or bouncing, especially on mobile */
+html, body, #root {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  margin: 0;
+  padding: 0;
+  position: fixed; /* Prevents scroll elasticity on iOS devices */
+}
+
+/* Height-based media queries to fit Wordle perfectly on short mobile screens */
+@media (max-height: 740px) {
+  .cell-container {
+    width: 2.75rem !important; /* w-11 equivalent */
+    height: 2.75rem !important;
+  }
+  .cell-front, .cell-back {
+    font-size: 1.125rem !important; /* text-lg */
+  }
+  #virtual-keyboard button {
+    height: 2.5rem !important; /* h-10 equivalent */
+    font-size: 0.75rem !important;
+  }
+  main {
+    padding-top: 0.5rem !important;
+    padding-bottom: 0.5rem !important;
+  }
+}
+
+@media (max-height: 660px) {
+  .cell-container {
+    width: 2.25rem !important; /* w-9 equivalent */
+    height: 2.25rem !important;
+  }
+  .cell-front, .cell-back {
+    font-size: 1rem !important; /* text-base */
+  }
+  #virtual-keyboard button {
+    height: 2.15rem !important; /* h-8.5 equivalent */
+    font-size: 0.7rem !important;
+  }
+  header {
+    padding-top: 0.25rem !important;
+    padding-bottom: 0.25rem !important;
+  }
+  #wordle-grid {
+    margin-bottom: 0.5rem !important;
+    gap: 0.25rem !important;
+  }
+}
+
+

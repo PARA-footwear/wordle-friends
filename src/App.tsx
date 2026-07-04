@@ -20,7 +20,8 @@ import {
   Users,
   Database,
   CloudLightning,
-  UserCheck
+  UserCheck,
+  Lock
 } from 'lucide-react';
 import { getRandomWord, isValidWord, getDailyWord, bannedWords } from './words';
 import { saveGameResult, getGameResultsForDate, getAllPlayedDates, PlayerResult } from './firebase';
@@ -184,6 +185,7 @@ export default function App() {
   // Custom toast notifications
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
   const toastTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const loadedLangRef = useRef<'RU' | 'UA'>(lang);
 
   // Settings & Theme
   const [isDarkMode, setIsDarkMode] = useState<boolean>(() => {
@@ -255,6 +257,24 @@ export default function App() {
     return dates;
   };
 
+  // Helper: Check if daily game is completed for a language
+  const isDailyGameCompleted = (language: 'RU' | 'UA') => {
+    if (language === lang) {
+      return gameStatus === 'WON' || gameStatus === 'LOST';
+    }
+    const todayStr = getTodayDateString();
+    const saved = localStorage.getItem(`wordle_daily_state_${todayStr}_${language}`);
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        return parsed && (parsed.gameStatus === 'WON' || parsed.gameStatus === 'LOST');
+      } catch (e) {
+        return false;
+      }
+    }
+    return false;
+  };
+
   // Helper: Load other friends results for today
   const loadFriendsResults = async () => {
     if (!nickname) return;
@@ -314,7 +334,7 @@ export default function App() {
 
   // Persistence: Save daily game state to localStorage
   useEffect(() => {
-    if (isOriginalMode) {
+    if (isOriginalMode && loadedLangRef.current === lang) {
       const todayStr = getTodayDateString();
       if (guesses.length > 0) {
         localStorage.setItem(`wordle_daily_state_${todayStr}_${lang}`, JSON.stringify({
@@ -329,7 +349,7 @@ export default function App() {
 
   // Auto-sync completed daily games to Firebase
   useEffect(() => {
-    if (isOriginalMode && nickname && (gameStatus === 'WON' || gameStatus === 'LOST') && guesses.length > 0 && targetWord) {
+    if (isOriginalMode && loadedLangRef.current === lang && nickname && (gameStatus === 'WON' || gameStatus === 'LOST') && guesses.length > 0 && targetWord) {
       const todayStr = getTodayDateString();
       const uploadKey = `wordle_ru_uploaded_${todayStr}_${lang}_${nickname}`;
       const alreadyUploaded = localStorage.getItem(uploadKey);
@@ -360,6 +380,7 @@ export default function App() {
           if (parsed && Array.isArray(parsed.guesses)) {
             setGuesses(parsed.guesses);
             setGameStatus(parsed.gameStatus || 'IN_PROGRESS');
+            loadedLangRef.current = lang;
             return;
           }
         } catch (e) {
@@ -370,6 +391,7 @@ export default function App() {
     
     setGuesses([]);
     setGameStatus('IN_PROGRESS');
+    loadedLangRef.current = lang;
   }, [isOriginalMode, lang]);
 
   // Trigger Info Modal on first visit ever
@@ -741,7 +763,7 @@ export default function App() {
 
   if (!nickname) {
     return (
-      <div className={`min-h-screen min-h-[100dvh] font-sans flex flex-col items-center justify-center p-4 transition-colors duration-300
+      <div className={`h-[100dvh] max-h-[100dvh] w-full overflow-hidden font-sans flex flex-col items-center justify-center p-4 transition-colors duration-300
         ${isDarkMode ? 'bg-neutral-950 text-neutral-100' : 'bg-slate-50 text-slate-800'}`}
       >
         {/* Header decoration */}
@@ -829,7 +851,7 @@ export default function App() {
   }
 
   return (
-    <div className={`min-h-screen min-h-[100dvh] font-sans flex flex-col justify-between transition-colors duration-300 select-none
+    <div className={`h-[100dvh] max-h-[100dvh] w-full overflow-hidden font-sans flex flex-col justify-between transition-colors duration-300 select-none
       ${isDarkMode 
         ? 'bg-neutral-950 text-neutral-100' 
         : 'bg-white text-neutral-900'
@@ -851,7 +873,7 @@ export default function App() {
       )}
 
       {/* HEADER SECTION */}
-      <header className={`py-4 px-4 border-b flex justify-between items-center max-w-lg mx-full w-full mx-auto
+      <header className={`py-4 px-4 border-b flex justify-between items-center max-w-lg w-full mx-auto
         ${isDarkMode ? 'border-neutral-900 bg-neutral-950/80 backdrop-blur-sm' : 'border-neutral-200 bg-white/80 backdrop-blur-sm'}`}
       >
         <div className="flex items-center gap-1.5">
@@ -1001,7 +1023,7 @@ export default function App() {
       </main>
 
       {/* KEYBOARD SECTION */}
-      <footer className="pb-[calc(env(safe-area-inset-bottom,0px)+2rem)] xs:pb-[calc(env(safe-area-inset-bottom,0px)+1.5rem)] sm:pb-8 md:pb-6 px-1 md:px-4 max-w-lg w-full mx-auto">
+      <footer className="pb-[calc(env(safe-area-inset-bottom,0px)+1rem)] xs:pb-[calc(env(safe-area-inset-bottom,0px)+1rem)] sm:pb-6 md:pb-6 px-1 md:px-4 max-w-lg w-full mx-auto">
         <div id="virtual-keyboard" className="flex flex-col gap-1.5 md:gap-2 select-none">
           {keyboardRows.map((row, rowIdx) => (
             <div key={rowIdx} className="flex justify-center w-full gap-1 md:gap-1.5">
@@ -1282,15 +1304,29 @@ export default function App() {
                 {lang === 'UA' ? "Сьогоднішні сітки друзів" : "Сегодняшние сетки друзей"}
               </h4>
 
-              {friendsResults.length === 0 ? (
+              {!isDailyGameCompleted(lang) ? (
+                <div className="p-5 rounded-2xl border border-dashed border-neutral-200 dark:border-neutral-800 text-center text-xs opacity-70 flex flex-col items-center gap-2 bg-neutral-50 dark:bg-neutral-900/45">
+                  <Lock className="w-5 h-5 text-amber-500 animate-pulse" />
+                  <span className="font-bold">
+                    {lang === 'UA'
+                      ? "Спершу пройдіть сьогоднішнє слово дня! 🔒"
+                      : "Сначала пройдите сегодняшнее слово дня! 🔒"}
+                  </span>
+                  <p className="text-[10px] opacity-60">
+                    {lang === 'UA'
+                      ? "Сітки інших гравців відкриються після закінчення вашої гри."
+                      : "Сетки других игроков откроются после окончания вашей игры."}
+                  </p>
+                </div>
+              ) : friendsResults.filter(r => r.lang === lang).length === 0 ? (
                 <div className="p-4 rounded-xl border border-dashed border-neutral-200 dark:border-neutral-800 text-center text-xs opacity-60">
                   {lang === 'UA'
-                    ? "Інші гравці ще не закінчили сьогоднішню гру ⏳"
-                    : "Другие игроки еще не закончили сегодняшнюю игру ⏳"}
+                    ? "Інші гравці ще не закінчили сьогоднішню гру для цієї мови ⏳"
+                    : "Другие игроки еще не закончили сегодняшнюю игру для этого языка ⏳"}
                 </div>
               ) : (
                 <div className="grid grid-cols-2 xs:grid-cols-3 gap-2">
-                  {friendsResults.map((player, idx) => (
+                  {friendsResults.filter(r => r.lang === lang).map((player, idx) => (
                     <MiniFriendGrid 
                       key={idx} 
                       player={player} 
@@ -1323,159 +1359,184 @@ export default function App() {
               <Calendar className="w-6 h-6 text-emerald-500" />
               {lang === 'UA' ? "Архів Минулих Ігор 📅" : "Архив Прошедших Игр 📅"}
             </h3>
-            <p className="text-xs text-center opacity-60 mb-6">
-              {lang === 'UA' 
-                ? "Виберіть день, щоб переглянути результати та сітки всіх гравців" 
-                : "Выберите день, чтобы просмотреть результаты и сетки всех игроков"}
-            </p>
 
-            {/* Quick date selector buttons for played dates */}
-            <div className="mb-6">
-              <span className="text-[10px] uppercase tracking-wider font-mono opacity-50 block mb-2 font-bold text-left">
-                {lang === 'UA' ? "Швидкий вибір (ігри з результатами):" : "Быстрый выбор (игры с результатами):"}
-              </span>
-              {isLoadingPlayedDates ? (
-                <div className="flex justify-start items-center p-2 gap-2 text-xs opacity-60 font-mono">
-                  <CloudLightning className="w-4 h-4 text-emerald-500 animate-spin" />
-                  {lang === 'UA' ? "Завантаження дат..." : "Загрузка дат..."}
+            {!isDailyGameCompleted(lang) ? (
+              <div className="flex flex-col items-center text-center p-6 my-4 bg-neutral-50 dark:bg-neutral-950/40 rounded-2xl border border-dashed border-neutral-200 dark:border-neutral-800">
+                <div className="w-16 h-16 rounded-full bg-amber-500/10 flex items-center justify-center mb-4">
+                  <Lock className="w-8 h-8 text-amber-500 animate-pulse" />
                 </div>
-              ) : playedDates.length === 0 ? (
-                <div className="flex flex-wrap gap-1.5 justify-start">
-                  {getPastDates(7).map((dateStr) => {
-                    const isActive = archiveDate === dateStr;
-                    const parts = dateStr.split('-');
-                    const label = `${parts[2]}.${parts[1]}`;
-                    const isToday = dateStr === getTodayDateString();
-
-                    return (
-                      <button
-                        key={dateStr}
-                        onClick={async () => {
-                          triggerHaptic(15);
-                          setArchiveDate(dateStr);
-                          setIsLoadingArchive(true);
-                          try {
-                            const res = await getGameResultsForDate(dateStr);
-                            setArchiveResults(res);
-                          } catch (e) {
-                            console.error(e);
-                          } finally {
-                            setIsLoadingArchive(false);
-                          }
-                        }}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all duration-150 border cursor-pointer
-                          ${isActive 
-                            ? 'bg-emerald-500 border-emerald-500 text-white shadow-xs' 
-                            : isDarkMode
-                              ? 'bg-neutral-800 hover:bg-neutral-700 border-neutral-700 text-neutral-300'
-                              : 'bg-slate-100 hover:bg-slate-200 border-slate-200 text-slate-700'}`}
-                      >
-                        {label} {isToday ? ' (Сегодня)' : ''}
-                      </button>
-                    );
-                  })}
-                </div>
-              ) : (
-                <div className="flex flex-wrap gap-1.5 justify-start max-h-32 overflow-y-auto pr-1">
-                  {playedDates.map((dateStr) => {
-                    const isActive = archiveDate === dateStr;
-                    const parts = dateStr.split('-');
-                    const label = `${parts[2]}.${parts[1]}`;
-                    const isToday = dateStr === getTodayDateString();
-
-                    return (
-                      <button
-                        key={dateStr}
-                        onClick={async () => {
-                          triggerHaptic(15);
-                          setArchiveDate(dateStr);
-                          setIsLoadingArchive(true);
-                          try {
-                            const res = await getGameResultsForDate(dateStr);
-                            setArchiveResults(res);
-                          } catch (e) {
-                            console.error(e);
-                          } finally {
-                            setIsLoadingArchive(false);
-                          }
-                        }}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all duration-150 border cursor-pointer
-                          ${isActive 
-                            ? 'bg-emerald-500 border-emerald-500 text-white shadow-xs' 
-                            : isDarkMode
-                              ? 'bg-neutral-800 hover:bg-neutral-700 border-neutral-700 text-neutral-300'
-                              : 'bg-slate-100 hover:bg-slate-200 border-slate-200 text-slate-700'}`}
-                      >
-                        {label} {isToday ? ' (Сегодня)' : ''}
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-
-            {/* Custom Date Input */}
-            <div className="mb-6 flex items-center gap-2 bg-neutral-100 dark:bg-neutral-800/40 p-2.5 rounded-xl border border-neutral-200 dark:border-neutral-800">
-              <span className="text-xs font-bold font-mono opacity-70">
-                {lang === 'UA' ? "Інша дата:" : "Другая дата:"}
-              </span>
-              <input
-                type="date"
-                value={archiveDate}
-                onChange={async (e) => {
-                  const selected = e.target.value;
-                  if (!selected) return;
-                  setArchiveDate(selected);
-                  setIsLoadingArchive(true);
-                  try {
-                    const res = await getGameResultsForDate(selected);
-                    setArchiveResults(res);
-                  } catch (err) {
-                    console.error(err);
-                  } finally {
-                    setIsLoadingArchive(false);
-                  }
-                }}
-                className={`flex-1 px-3 py-1 rounded-lg border outline-none font-bold text-xs
-                  ${isDarkMode 
-                    ? 'bg-neutral-950 border-neutral-800 text-white focus:border-emerald-500' 
-                    : 'bg-white border-slate-200 text-slate-800 focus:border-emerald-500'}`}
-              />
-            </div>
-
-            {/* Loaded Archive results grids */}
-            <div className="border-t border-neutral-100 dark:border-neutral-800 pt-4">
-              <h4 className="font-bold text-xs mb-3 tracking-wide uppercase opacity-70 flex items-center gap-1.5">
-                <Database className="w-4 h-4 text-emerald-500" />
-                {lang === 'UA' ? `Результати за ${archiveDate}` : `Результаты за ${archiveDate}`}
-              </h4>
-
-              {isLoadingArchive ? (
-                <div className="flex flex-col items-center justify-center p-8 gap-2">
-                  <CloudLightning className="w-8 h-8 text-emerald-500 animate-spin" />
-                  <span className="text-xs opacity-60 font-mono">
-                    {lang === 'UA' ? "Завантаження з хмари..." : "Загрузка из облака..."}
-                  </span>
-                </div>
-              ) : archiveResults.length === 0 ? (
-                <div className="p-6 rounded-xl border border-dashed border-neutral-200 dark:border-neutral-800 text-center text-xs opacity-60">
+                <h4 className="font-bold text-lg mb-2">
+                  {lang === 'UA' ? "Архів заблоковано! 🔒" : "Архив заблокирован! 🔒"}
+                </h4>
+                <p className="text-xs opacity-75 leading-relaxed mb-6 max-w-xs">
                   {lang === 'UA'
-                    ? "У цей день ніхто ще не зберіг результатів 📪"
-                    : "В этот день никто еще не сохранил результаты 📪"}
+                    ? "Вам необхідно завершити сьогоднішню гру українською мовою, щоб відкрити історію та результати інших гравців."
+                    : "Вам необходимо завершить сегодняшнюю игру на русском языке, чтобы открыть историю и результаты других игроков."}
+                </p>
+                <button
+                  onClick={() => { triggerHaptic(15); setShowArchiveModal(false); }}
+                  className="px-6 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white font-bold rounded-xl text-xs uppercase tracking-wider shadow-sm transition-all cursor-pointer"
+                >
+                  {lang === 'UA' ? "Грати зараз 🎮" : "Играть сейчас 🎮"}
+                </button>
+              </div>
+            ) : (
+              <>
+                <p className="text-xs text-center opacity-60 mb-6">
+                  {lang === 'UA' 
+                    ? "Виберіть день, щоб переглянути результати та сітки всіх гравців" 
+                    : "Выберите день, чтобы просмотреть результаты и сетки всех игроков"}
+                </p>
+
+                {/* Quick date selector buttons for played dates */}
+                <div className="mb-6">
+                  <span className="text-[10px] uppercase tracking-wider font-mono opacity-50 block mb-2 font-bold text-left">
+                    {lang === 'UA' ? "Швидкий вибір (ігри з результатами):" : "Быстрый выбор (игры с результатами):"}
+                  </span>
+                  {isLoadingPlayedDates ? (
+                    <div className="flex justify-start items-center p-2 gap-2 text-xs opacity-60 font-mono">
+                      <CloudLightning className="w-4 h-4 text-emerald-500 animate-spin" />
+                      {lang === 'UA' ? "Завантаження дат..." : "Загрузка дат..."}
+                    </div>
+                  ) : playedDates.length === 0 ? (
+                    <div className="flex flex-wrap gap-1.5 justify-start">
+                      {getPastDates(7).map((dateStr) => {
+                        const isActive = archiveDate === dateStr;
+                        const parts = dateStr.split('-');
+                        const label = `${parts[2]}.${parts[1]}`;
+                        const isToday = dateStr === getTodayDateString();
+
+                        return (
+                          <button
+                            key={dateStr}
+                            onClick={async () => {
+                              triggerHaptic(15);
+                              setArchiveDate(dateStr);
+                              setIsLoadingArchive(true);
+                              try {
+                                const res = await getGameResultsForDate(dateStr);
+                                setArchiveResults(res);
+                              } catch (e) {
+                                console.error(e);
+                              } finally {
+                                setIsLoadingArchive(false);
+                              }
+                            }}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all duration-150 border cursor-pointer
+                              ${isActive 
+                                ? 'bg-emerald-500 border-emerald-500 text-white shadow-xs' 
+                                : isDarkMode
+                                  ? 'bg-neutral-800 hover:bg-neutral-700 border-neutral-700 text-neutral-300'
+                                  : 'bg-slate-100 hover:bg-slate-200 border-slate-200 text-slate-700'}`}
+                          >
+                            {label} {isToday ? ' (Сегодня)' : ''}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className="flex flex-wrap gap-1.5 justify-start max-h-32 overflow-y-auto pr-1">
+                      {playedDates.map((dateStr) => {
+                        const isActive = archiveDate === dateStr;
+                        const parts = dateStr.split('-');
+                        const label = `${parts[2]}.${parts[1]}`;
+                        const isToday = dateStr === getTodayDateString();
+
+                        return (
+                          <button
+                            key={dateStr}
+                            onClick={async () => {
+                              triggerHaptic(15);
+                              setArchiveDate(dateStr);
+                              setIsLoadingArchive(true);
+                              try {
+                                const res = await getGameResultsForDate(dateStr);
+                                setArchiveResults(res);
+                              } catch (e) {
+                                console.error(e);
+                              } finally {
+                                setIsLoadingArchive(false);
+                              }
+                            }}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all duration-150 border cursor-pointer
+                              ${isActive 
+                                ? 'bg-emerald-500 border-emerald-500 text-white shadow-xs' 
+                                : isDarkMode
+                                  ? 'bg-neutral-800 hover:bg-neutral-700 border-neutral-700 text-neutral-300'
+                                  : 'bg-slate-100 hover:bg-slate-200 border-slate-200 text-slate-700'}`}
+                          >
+                            {label} {isToday ? ' (Сегодня)' : ''}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
-              ) : (
-                <div className="grid grid-cols-2 xs:grid-cols-3 gap-2">
-                  {archiveResults.map((player, idx) => (
-                    <MiniFriendGrid 
-                      key={idx} 
-                      player={player} 
-                      isDarkMode={isDarkMode} 
-                      lang={lang} 
-                    />
-                  ))}
+
+                {/* Custom Date Input */}
+                <div className="mb-6 flex items-center gap-2 bg-neutral-100 dark:bg-neutral-800/40 p-2.5 rounded-xl border border-neutral-200 dark:border-neutral-800">
+                  <span className="text-xs font-bold font-mono opacity-70">
+                    {lang === 'UA' ? "Інша дата:" : "Другая дата:"}
+                  </span>
+                  <input
+                    type="date"
+                    value={archiveDate}
+                    onChange={async (e) => {
+                      const selected = e.target.value;
+                      if (!selected) return;
+                      setArchiveDate(selected);
+                      setIsLoadingArchive(true);
+                      try {
+                        const res = await getGameResultsForDate(selected);
+                        setArchiveResults(res);
+                      } catch (err) {
+                        console.error(err);
+                      } finally {
+                        setIsLoadingArchive(false);
+                      }
+                    }}
+                    className={`flex-1 px-3 py-1 rounded-lg border outline-none font-bold text-xs
+                      ${isDarkMode 
+                        ? 'bg-neutral-950 border-neutral-800 text-white focus:border-emerald-500' 
+                        : 'bg-white border-slate-200 text-slate-800 focus:border-emerald-500'}`}
+                  />
                 </div>
-              )}
-            </div>
+
+                {/* Loaded Archive results grids */}
+                <div className="border-t border-neutral-100 dark:border-neutral-800 pt-4">
+                  <h4 className="font-bold text-xs mb-3 tracking-wide uppercase opacity-70 flex items-center gap-1.5">
+                    <Database className="w-4 h-4 text-emerald-500" />
+                    {lang === 'UA' ? `Результати за ${archiveDate}` : `Результаты за ${archiveDate}`}
+                  </h4>
+
+                  {isLoadingArchive ? (
+                    <div className="flex flex-col items-center justify-center p-8 gap-2">
+                      <CloudLightning className="w-8 h-8 text-emerald-500 animate-spin" />
+                      <span className="text-xs opacity-60 font-mono">
+                        {lang === 'UA' ? "Завантаження з хмари..." : "Загрузка из облака..."}
+                      </span>
+                    </div>
+                  ) : archiveResults.filter(r => r.lang === lang).length === 0 ? (
+                    <div className="p-6 rounded-xl border border-dashed border-neutral-200 dark:border-neutral-800 text-center text-xs opacity-60">
+                      {lang === 'UA'
+                        ? "У цей день ніхто ще не зберіг результатів для цієї мови 📪"
+                        : "В этот день никто еще не сохранил результаты для этого языка 📪"}
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-2 xs:grid-cols-3 gap-2">
+                      {archiveResults.filter(r => r.lang === lang).map((player, idx) => (
+                        <MiniFriendGrid 
+                          key={idx} 
+                          player={player} 
+                          isDarkMode={isDarkMode} 
+                          lang={lang} 
+                        />
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}
