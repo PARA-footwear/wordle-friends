@@ -23,7 +23,7 @@ import {
   UserCheck
 } from 'lucide-react';
 import { getRandomWord, isValidWord, getDailyWord, bannedWords } from './words';
-import { saveGameResult, getGameResultsForDate, PlayerResult } from './firebase';
+import { saveGameResult, getGameResultsForDate, getAllPlayedDates, PlayerResult } from './firebase';
 
 
 interface GameStats {
@@ -206,6 +206,8 @@ export default function App() {
   const [archiveDate, setArchiveDate] = useState<string>('');
   const [archiveResults, setArchiveResults] = useState<PlayerResult[]>([]);
   const [isLoadingArchive, setIsLoadingArchive] = useState<boolean>(false);
+  const [playedDates, setPlayedDates] = useState<string[]>([]);
+  const [isLoadingPlayedDates, setIsLoadingPlayedDates] = useState<boolean>(false);
 
   // Modals
   const [showInfoModal, setShowInfoModal] = useState<boolean>(false);
@@ -902,9 +904,26 @@ export default function App() {
         <div className="flex items-center gap-1">
           <button 
             id="archive-btn"
-            onClick={() => {
-              setArchiveDate(getTodayDateString());
+            onClick={async () => {
+              triggerHaptic(10);
+              const todayStr = getTodayDateString();
+              setArchiveDate(todayStr);
               setShowArchiveModal(true);
+              setIsLoadingPlayedDates(true);
+              setIsLoadingArchive(true);
+              try {
+                const dates = await getAllPlayedDates();
+                setPlayedDates(dates);
+                const defaultDate = dates.length > 0 ? dates[0] : todayStr;
+                setArchiveDate(defaultDate);
+                const res = await getGameResultsForDate(defaultDate);
+                setArchiveResults(res);
+              } catch (e) {
+                console.error(e);
+              } finally {
+                setIsLoadingPlayedDates(false);
+                setIsLoadingArchive(false);
+              }
             }} 
             className={`p-1.5 rounded-lg transition-colors duration-200 ${isDarkMode ? 'hover:bg-neutral-900 text-neutral-400 hover:text-neutral-200' : 'hover:bg-slate-100 text-slate-500 hover:text-slate-800'}`}
             title={lang === 'UA' ? "Архів ігор" : "Архив игр"}
@@ -1310,46 +1329,89 @@ export default function App() {
                 : "Выберите день, чтобы просмотреть результаты и сетки всех игроков"}
             </p>
 
-            {/* Quick date selector buttons for the last 7 days */}
+            {/* Quick date selector buttons for played dates */}
             <div className="mb-6">
               <span className="text-[10px] uppercase tracking-wider font-mono opacity-50 block mb-2 font-bold text-left">
-                {lang === 'UA' ? "Швидкий вибір (останні 7 днів):" : "Быстрый выбор (последние 7 дней):"}
+                {lang === 'UA' ? "Швидкий вибір (ігри з результатами):" : "Быстрый выбор (игры с результатами):"}
               </span>
-              <div className="flex flex-wrap gap-1.5 justify-start">
-                {getPastDates(7).map((dateStr) => {
-                  const isActive = archiveDate === dateStr;
-                  const parts = dateStr.split('-');
-                  const label = `${parts[2]}.${parts[1]}`;
-                  const isToday = dateStr === getTodayDateString();
+              {isLoadingPlayedDates ? (
+                <div className="flex justify-start items-center p-2 gap-2 text-xs opacity-60 font-mono">
+                  <CloudLightning className="w-4 h-4 text-emerald-500 animate-spin" />
+                  {lang === 'UA' ? "Завантаження дат..." : "Загрузка дат..."}
+                </div>
+              ) : playedDates.length === 0 ? (
+                <div className="flex flex-wrap gap-1.5 justify-start">
+                  {getPastDates(7).map((dateStr) => {
+                    const isActive = archiveDate === dateStr;
+                    const parts = dateStr.split('-');
+                    const label = `${parts[2]}.${parts[1]}`;
+                    const isToday = dateStr === getTodayDateString();
 
-                  return (
-                    <button
-                      key={dateStr}
-                      onClick={async () => {
-                        triggerHaptic(15);
-                        setArchiveDate(dateStr);
-                        setIsLoadingArchive(true);
-                        try {
-                          const res = await getGameResultsForDate(dateStr);
-                          setArchiveResults(res);
-                        } catch (e) {
-                          console.error(e);
-                        } finally {
-                          setIsLoadingArchive(false);
-                        }
-                      }}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all duration-150 border cursor-pointer
-                        ${isActive 
-                          ? 'bg-emerald-500 border-emerald-500 text-white shadow-xs' 
-                          : isDarkMode
-                            ? 'bg-neutral-800 hover:bg-neutral-700 border-neutral-700 text-neutral-300'
-                            : 'bg-slate-100 hover:bg-slate-200 border-slate-200 text-slate-700'}`}
-                    >
-                      {label} {isToday ? ' (Сегодня)' : ''}
-                    </button>
-                  );
-                })}
-              </div>
+                    return (
+                      <button
+                        key={dateStr}
+                        onClick={async () => {
+                          triggerHaptic(15);
+                          setArchiveDate(dateStr);
+                          setIsLoadingArchive(true);
+                          try {
+                            const res = await getGameResultsForDate(dateStr);
+                            setArchiveResults(res);
+                          } catch (e) {
+                            console.error(e);
+                          } finally {
+                            setIsLoadingArchive(false);
+                          }
+                        }}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all duration-150 border cursor-pointer
+                          ${isActive 
+                            ? 'bg-emerald-500 border-emerald-500 text-white shadow-xs' 
+                            : isDarkMode
+                              ? 'bg-neutral-800 hover:bg-neutral-700 border-neutral-700 text-neutral-300'
+                              : 'bg-slate-100 hover:bg-slate-200 border-slate-200 text-slate-700'}`}
+                      >
+                        {label} {isToday ? ' (Сегодня)' : ''}
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="flex flex-wrap gap-1.5 justify-start max-h-32 overflow-y-auto pr-1">
+                  {playedDates.map((dateStr) => {
+                    const isActive = archiveDate === dateStr;
+                    const parts = dateStr.split('-');
+                    const label = `${parts[2]}.${parts[1]}`;
+                    const isToday = dateStr === getTodayDateString();
+
+                    return (
+                      <button
+                        key={dateStr}
+                        onClick={async () => {
+                          triggerHaptic(15);
+                          setArchiveDate(dateStr);
+                          setIsLoadingArchive(true);
+                          try {
+                            const res = await getGameResultsForDate(dateStr);
+                            setArchiveResults(res);
+                          } catch (e) {
+                            console.error(e);
+                          } finally {
+                            setIsLoadingArchive(false);
+                          }
+                        }}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all duration-150 border cursor-pointer
+                          ${isActive 
+                            ? 'bg-emerald-500 border-emerald-500 text-white shadow-xs' 
+                            : isDarkMode
+                              ? 'bg-neutral-800 hover:bg-neutral-700 border-neutral-700 text-neutral-300'
+                              : 'bg-slate-100 hover:bg-slate-200 border-slate-200 text-slate-700'}`}
+                      >
+                        {label} {isToday ? ' (Сегодня)' : ''}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
             </div>
 
             {/* Custom Date Input */}

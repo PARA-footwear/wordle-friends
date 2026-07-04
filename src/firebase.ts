@@ -6,7 +6,8 @@ import {
   getDocs, 
   collection,
   query,
-  limit
+  limit,
+  collectionGroup
 } from "firebase/firestore";
 
 // Default configuration from firebase-applet-config.json
@@ -96,6 +97,30 @@ export async function getGameResultsForDate(date: string): Promise<PlayerResult[
     return results;
   } catch (error) {
     console.error("Error fetching results for date:", date, error);
+    return [];
+  }
+}
+
+/**
+ * Fetches all unique dates that have recorded results in the database.
+ */
+export async function getAllPlayedDates(): Promise<string[]> {
+  try {
+    const colGroupRef = collectionGroup(db, "results");
+    const snapshot = await getDocs(colGroupRef);
+    const datesSet = new Set<string>();
+    snapshot.forEach((doc) => {
+      const dateDoc = doc.ref.parent.parent;
+      if (dateDoc) {
+        datesSet.add(dateDoc.id);
+      }
+    });
+    const dates = Array.from(datesSet);
+    // Sort descending (latest first)
+    dates.sort((a, b) => b.localeCompare(a));
+    return dates;
+  } catch (error) {
+    console.error("Error fetching played dates:", error);
     return [];
   }
 }
