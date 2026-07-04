@@ -222,7 +222,10 @@ export default function App() {
     const saved = localStorage.getItem('wordle_ru_stats');
     if (saved) {
       try {
-        return JSON.parse(saved);
+        const parsed = JSON.parse(saved);
+        if (parsed && typeof parsed.gamesPlayed === 'number' && Array.isArray(parsed.guessDistribution)) {
+          return parsed;
+        }
       } catch (e) {
         return defaultStats;
       }
@@ -351,10 +354,12 @@ export default function App() {
       const saved = localStorage.getItem(`wordle_daily_state_${todayStr}_${lang}`);
       if (saved) {
         try {
-          const { guesses: savedGuesses, gameStatus: savedStatus } = JSON.parse(saved);
-          setGuesses(savedGuesses);
-          setGameStatus(savedStatus);
-          return;
+          const parsed = JSON.parse(saved);
+          if (parsed && Array.isArray(parsed.guesses)) {
+            setGuesses(parsed.guesses);
+            setGameStatus(parsed.gameStatus || 'IN_PROGRESS');
+            return;
+          }
         } catch (e) {
           // Fall through
         }
