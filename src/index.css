@@ -6,6 +6,8 @@
   --font-display: "Helvetica Neue", Arial, "Outfit", sans-serif;
   --font-mono: "JetBrains Mono", monospace;
 
+  --breakpoint-xs: 380px;
+
   /* Custom Professional Polish Wordle Colors */
   --color-wordle-correct: #6aaa64;
   --color-wordle-present: #c9b458;

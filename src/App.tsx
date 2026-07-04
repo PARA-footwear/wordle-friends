@@ -104,14 +104,14 @@ function MiniFriendGrid({ player, isDarkMode, lang }: MiniFriendGridProps) {
   };
 
   return (
-    <div className={`p-2 rounded-xl border flex flex-col items-center gap-1.5 shadow-xs transition-all duration-200
+    <div className={`p-1.5 sm:p-2 rounded-xl border flex flex-col items-center gap-1 shadow-xs transition-all duration-200 w-full
       ${isDarkMode ? 'bg-neutral-900/60 border-neutral-800' : 'bg-slate-50 border-slate-200'}`}
     >
-      <div className="flex justify-between items-center w-full gap-1.5 px-0.5">
-        <span className="font-bold text-[11px] truncate max-w-[70px] tracking-tight" title={nickname}>
+      <div className="flex justify-between items-start w-full gap-1 px-0.5 mb-0.5">
+        <span className="font-bold text-[9.5px] sm:text-[10.5px] leading-tight break-words flex-1 pr-0.5" title={nickname}>
           {nickname}
         </span>
-        <span className={`text-[9px] font-mono px-1 py-0.2 rounded font-bold
+        <span className={`text-[8px] sm:text-[9px] font-mono px-1 py-0.2 rounded font-bold shrink-0
           ${isWon 
             ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300' 
             : 'bg-rose-100 text-rose-800 dark:bg-rose-950/50 dark:text-rose-300'}`}
@@ -120,21 +120,21 @@ function MiniFriendGrid({ player, isDarkMode, lang }: MiniFriendGridProps) {
         </span>
       </div>
 
-      <div className="grid grid-rows-6 gap-[2px] w-fit">
+      <div className="grid grid-rows-6 gap-[1px] sm:gap-[1.5px] w-fit">
         {gridRows.map((_, rowIdx) => {
           const guess = guesses[rowIdx] || "";
           const isSubmitted = rowIdx < guesses.length;
           const statuses = isSubmitted ? getLetterStatuses(guess, wordToGuess || "СЛОВО") : [];
 
           return (
-            <div key={rowIdx} className="flex gap-[2px]">
+            <div key={rowIdx} className="flex gap-[1px] sm:gap-[1.5px]">
               {Array(5).fill(null).map((_, colIdx) => {
                 const letter = guess[colIdx] || "";
                 let cellBg = "bg-neutral-200 dark:bg-neutral-800";
                 let textColor = "text-transparent";
                 
                 if (isSubmitted) {
-                  textColor = "text-white text-[9px] font-black";
+                  textColor = "text-white text-[7.5px] sm:text-[8.5px] font-black";
                   if (statuses[colIdx] === 'correct') {
                     cellBg = "bg-emerald-500 dark:bg-emerald-600";
                   } else if (statuses[colIdx] === 'present') {
@@ -147,7 +147,7 @@ function MiniFriendGrid({ player, isDarkMode, lang }: MiniFriendGridProps) {
                 return (
                   <div 
                     key={colIdx}
-                    className={`w-5 h-5 xs:w-5.5 xs:h-5.5 rounded flex items-center justify-center font-mono select-none ${cellBg} ${textColor}`}
+                    className={`w-[14px] h-[14px] sm:w-[17px] sm:h-[17px] rounded-xs flex items-center justify-center font-mono select-none ${cellBg} ${textColor}`}
                   >
                     {letter}
                   </div>
@@ -159,7 +159,7 @@ function MiniFriendGrid({ player, isDarkMode, lang }: MiniFriendGridProps) {
       </div>
 
       {wordToGuess && (
-        <span className="text-[8px] font-mono opacity-50 uppercase tracking-widest mt-0.5">
+        <span className="text-[6.5px] sm:text-[7.5px] font-mono opacity-50 uppercase tracking-wider mt-0.5">
           {wordToGuess} ({playerLang})
         </span>
       )}
@@ -780,13 +780,13 @@ export default function App() {
 
           <form onSubmit={(e) => {
             e.preventDefault();
-            const trimmed = nickInput.trim().slice(0, 15);
+            const trimmed = nickInput.trim().slice(0, 25);
             if (trimmed) {
-              localStorage.setItem('wordle_ru_nickname', trimmed);
-              setNickname(trimmed);
-              triggerHaptic(50);
+               localStorage.setItem('wordle_ru_nickname', trimmed);
+               setNickname(trimmed);
+               triggerHaptic(50);
             } else {
-              showToast(lang === 'UA' ? "Будь ласка, введіть нікнейм ✍️" : "Пожалуйста, введите никнейм ✍️", "error");
+               showToast(lang === 'UA' ? "Будь ласка, введіть нікнейм ✍️" : "Пожалуйста, введите никнейм ✍️", "error");
             }
           }} className="space-y-4">
             <div className="text-left">
@@ -795,7 +795,7 @@ export default function App() {
               </label>
               <input
                 type="text"
-                maxLength={15}
+                maxLength={25}
                 value={nickInput}
                 onChange={(e) => setNickInput(e.target.value)}
                 placeholder={lang === 'UA' ? 'Наприклад, Іван...' : 'Например, Иван...'}
@@ -1270,7 +1270,7 @@ export default function App() {
                     : "Другие игроки еще не закончили сегодняшнюю игру ⏳"}
                 </div>
               ) : (
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-2 xs:grid-cols-3 gap-2">
                   {friendsResults.map((player, idx) => (
                     <MiniFriendGrid 
                       key={idx} 
@@ -1402,7 +1402,7 @@ export default function App() {
                     : "В этот день никто еще не сохранил результаты 📪"}
                 </div>
               ) : (
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-2 xs:grid-cols-3 gap-2">
                   {archiveResults.map((player, idx) => (
                     <MiniFriendGrid 
                       key={idx} 
