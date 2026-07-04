@@ -741,7 +741,7 @@ export default function App() {
 
   if (!nickname) {
     return (
-      <div className={`min-h-screen font-sans flex flex-col items-center justify-center p-4 transition-colors duration-300
+      <div className={`min-h-screen min-h-[100dvh] font-sans flex flex-col items-center justify-center p-4 transition-colors duration-300
         ${isDarkMode ? 'bg-neutral-950 text-neutral-100' : 'bg-slate-50 text-slate-800'}`}
       >
         {/* Header decoration */}
@@ -829,7 +829,7 @@ export default function App() {
   }
 
   return (
-    <div className={`min-h-screen font-sans flex flex-col justify-between transition-colors duration-300 select-none
+    <div className={`min-h-screen min-h-[100dvh] font-sans flex flex-col justify-between transition-colors duration-300 select-none
       ${isDarkMode 
         ? 'bg-neutral-950 text-neutral-100' 
         : 'bg-white text-neutral-900'
@@ -1001,7 +1001,7 @@ export default function App() {
       </main>
 
       {/* KEYBOARD SECTION */}
-      <footer className="pb-6 px-1 md:px-4 max-w-lg w-full mx-auto">
+      <footer className="pb-[calc(env(safe-area-inset-bottom,0px)+2rem)] xs:pb-[calc(env(safe-area-inset-bottom,0px)+1.5rem)] sm:pb-8 md:pb-6 px-1 md:px-4 max-w-lg w-full mx-auto">
         <div id="virtual-keyboard" className="flex flex-col gap-1.5 md:gap-2 select-none">
           {keyboardRows.map((row, rowIdx) => (
             <div key={rowIdx} className="flex justify-center w-full gap-1 md:gap-1.5">
