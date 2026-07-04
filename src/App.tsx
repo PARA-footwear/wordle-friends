@@ -309,12 +309,16 @@ export default function App() {
 
   // Persistence: Save daily game state to localStorage
   useEffect(() => {
-    if (isOriginalMode && guesses.length > 0) {
+    if (isOriginalMode) {
       const todayStr = getTodayDateString();
-      localStorage.setItem(`wordle_daily_state_${todayStr}_${lang}`, JSON.stringify({
-        guesses,
-        gameStatus
-      }));
+      if (guesses.length > 0) {
+        localStorage.setItem(`wordle_daily_state_${todayStr}_${lang}`, JSON.stringify({
+          guesses,
+          gameStatus
+        }));
+      } else {
+        localStorage.removeItem(`wordle_daily_state_${todayStr}_${lang}`);
+      }
     }
   }, [guesses, gameStatus, isOriginalMode, lang]);
 
@@ -331,34 +335,17 @@ export default function App() {
     }
   }, [nickname, gameStatus, isOriginalMode, lang, targetWord, guesses]);
 
-  // Persistence: Load daily game state from localStorage
-  useEffect(() => {
-    if (isOriginalMode) {
-      const todayStr = getTodayDateString();
-      const saved = localStorage.getItem(`wordle_daily_state_${todayStr}_${lang}`);
-      if (saved) {
-        try {
-          const { guesses: savedGuesses, gameStatus: savedStatus } = JSON.parse(saved);
-          setGuesses(savedGuesses);
-          setGameStatus(savedStatus);
-        } catch (e) {
-          setGuesses([]);
-          setGameStatus('IN_PROGRESS');
-        }
-      } else {
-        setGuesses([]);
-        setGameStatus('IN_PROGRESS');
-      }
-    }
-  }, [isOriginalMode, lang]);
-
-
-  // Save language and trigger game reset on language change
+  // Save language whenever it changes
   useEffect(() => {
     localStorage.setItem('wordle_lang', lang);
+  }, [lang]);
+
+  // Consolidate game loading and mode/language switching
+  useEffect(() => {
+    setCurrentGuess("");
     const word = isOriginalMode ? getDailyWord(lang) : getRandomWord(lang);
     setTargetWord(word);
-    
+
     if (isOriginalMode) {
       const todayStr = getTodayDateString();
       const saved = localStorage.getItem(`wordle_daily_state_${todayStr}_${lang}`);
@@ -367,17 +354,16 @@ export default function App() {
           const { guesses: savedGuesses, gameStatus: savedStatus } = JSON.parse(saved);
           setGuesses(savedGuesses);
           setGameStatus(savedStatus);
-          setCurrentGuess("");
           return;
         } catch (e) {
           // Fall through
         }
       }
     }
+    
     setGuesses([]);
-    setCurrentGuess("");
     setGameStatus('IN_PROGRESS');
-  }, [lang]);
+  }, [isOriginalMode, lang]);
 
   // Trigger Info Modal on first visit ever
   useEffect(() => {
@@ -541,8 +527,7 @@ export default function App() {
       triggerHaptic([100, 50, 100]);
       setShakingRowIndex(guesses.length);
       setBannedRowIndex(guesses.length);
-      // As requested: "Это слово запрещено в нашей компании" (in Russian/Ukrainian)
-      showToast("Это слово запрещено в нашей компании 🚫", "error");
+      showToast("Не сегодня, Андрей, не сегодня... 🚫", "error");
       setTimeout(() => {
         setShakingRowIndex(null);
         setBannedRowIndex(null);

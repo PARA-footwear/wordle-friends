@@ -56,8 +56,9 @@ export async function saveGameResult(
   wordToGuess: string
 ): Promise<void> {
   if (!nickname || !date) return;
-  const docRef = doc(db, "dates", date, "results", nickname);
+  const docRef = doc(db, "dates", date, "results", `${nickname}_${lang}`);
   await setDoc(docRef, {
+    nickname,
     guesses,
     isWon,
     lang,
@@ -78,7 +79,7 @@ export async function getGameResultsForDate(date: string): Promise<PlayerResult[
     snapshot.forEach((doc) => {
       const data = doc.data();
       results.push({
-        nickname: doc.id,
+        nickname: data.nickname || doc.id,
         guesses: data.guesses || [],
         isWon: !!data.isWon,
         lang: data.lang || 'RU',
