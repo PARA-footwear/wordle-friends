@@ -223,7 +223,9 @@ export default function App() {
 
   // Game statistics
   const [stats, setStats] = useState<GameStats>(() => {
-    const saved = localStorage.getItem('wordle_ru_stats');
+    const initialLang = (localStorage.getItem('wordle_lang') as 'RU' | 'UA') || 'RU';
+    const key = `wordle_${initialLang.toLowerCase()}_stats`;
+    const saved = localStorage.getItem(key);
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
@@ -231,11 +233,53 @@ export default function App() {
           return parsed;
         }
       } catch (e) {
-        return defaultStats;
+        // Fall through
+      }
+    }
+    // Backward compatibility for Russian key
+    if (initialLang === 'RU') {
+      const oldSaved = localStorage.getItem('wordle_ru_stats');
+      if (oldSaved) {
+        try {
+          const parsed = JSON.parse(oldSaved);
+          if (parsed && typeof parsed.gamesPlayed === 'number' && Array.isArray(parsed.guessDistribution)) {
+            return parsed;
+          }
+        } catch (e) {}
       }
     }
     return defaultStats;
   });
+
+  // Load language-specific statistics when lang changes
+  useEffect(() => {
+    const key = `wordle_${lang.toLowerCase()}_stats`;
+    const saved = localStorage.getItem(key);
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (parsed && typeof parsed.gamesPlayed === 'number' && Array.isArray(parsed.guessDistribution)) {
+          setStats(parsed);
+          return;
+        }
+      } catch (e) {
+        // Fall through
+      }
+    } else if (lang === 'RU') {
+      // Backward compatibility for RU
+      const oldSaved = localStorage.getItem('wordle_ru_stats');
+      if (oldSaved) {
+        try {
+          const parsed = JSON.parse(oldSaved);
+          if (parsed && typeof parsed.gamesPlayed === 'number' && Array.isArray(parsed.guessDistribution)) {
+            setStats(parsed);
+            return;
+          }
+        } catch (e) {}
+      }
+    }
+    setStats(defaultStats);
+  }, [lang]);
 
   // Helper: Get today's date string YYYY-MM-DD
   const getTodayDateString = () => {
@@ -403,23 +447,6 @@ export default function App() {
     }
   }, []);
 
-  // Show status toasts on game completion
-  useEffect(() => {
-    if (gameStatus === 'WON') {
-      const message = lang === 'UA' 
-        ? "Вітаємо! Ви відгадали слово! 🎉" 
-        : "Поздравляем! Вы угадали слово! 🎉";
-      showToast(message, "success");
-      setTimeout(() => setShowStatsModal(true), 1500);
-    } else if (gameStatus === 'LOST') {
-      const message = lang === 'UA'
-        ? `Ви не відгадали. Загадане слово: ${targetWord} 🥺`
-        : `Вы не отгадали. Загаданное слово: ${targetWord} 🥺`;
-      showToast(message, "error");
-      setTimeout(() => setShowStatsModal(true), 2000);
-    }
-  }, [gameStatus, targetWord, lang]);
-
   // Helper to trigger custom toast notifications
   const showToast = (message: string, type: 'success' | 'error' | 'info' = 'info') => {
     if (toastTimeoutRef.current) {
@@ -585,10 +612,22 @@ export default function App() {
       setGameStatus('WON');
       updateStats(true, newGuesses.length);
       uploadDailyResult(newGuesses, true);
+
+      const message = lang === 'UA' 
+        ? "Вітаємо! Ви відгадали слово! 🎉" 
+        : "Поздравляем! Вы угадали слово! 🎉";
+      showToast(message, "success");
+      setTimeout(() => setShowStatsModal(true), 1500);
     } else if (newGuesses.length >= 6) {
       setGameStatus('LOST');
       updateStats(false, 6);
       uploadDailyResult(newGuesses, false);
+
+      const message = lang === 'UA'
+        ? `Ви не відгадали. Загадане слово: ${targetWord} 🥺`
+        : `Вы не отгадали. Загаданное слово: ${targetWord} 🥺`;
+      showToast(message, "error");
+      setTimeout(() => setShowStatsModal(true), 2000);
     }
   };
 
@@ -607,7 +646,11 @@ export default function App() {
     }
     
     setStats(updatedStats);
-    localStorage.setItem('wordle_ru_stats', JSON.stringify(updatedStats));
+    const key = `wordle_${lang.toLowerCase()}_stats`;
+    localStorage.setItem(key, JSON.stringify(updatedStats));
+    if (lang === 'RU') {
+      localStorage.setItem('wordle_ru_stats', JSON.stringify(updatedStats)); // Keep backward compatibility for old Russian key
+    }
   };
 
   // Reset Game
