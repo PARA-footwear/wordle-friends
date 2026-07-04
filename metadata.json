@@ -1,0 +1,6 @@
+{
+  "name": "Вордли",
+  "description": "Приватный клон игры Вордли на 4 человек с общей историей, автоматическим сохранением результатов в Firestore и архивом прошедших дней.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
