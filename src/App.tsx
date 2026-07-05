@@ -1963,8 +1963,8 @@ export default function App() {
                     : PREDICTIONS_RU[getDailyPredictionIndex(getTodayDateString(), nickname)];
                   
                   const shareText = lang === 'UA'
-                    ? `🔮 Моє передбачення у Вордлі на сьогодні:\n"${pred}"\n\nЗіграй теж і отримай своє: ${window.location.origin}`
-                    : `🔮 Моё предсказание в Вордли на сегодня:\n"${pred}"\n\nСыграй тоже и получи своё: ${window.location.origin}`;
+                    ? `🔮 Моє передбачення у Вордлі на сьогодні:\n"${pred}"\n\nЗіграй теж і отримай своє: https://para-footwear.github.io/wordle-friends/`
+                    : `🔮 Моё предсказание в Вордли на сегодня:\n"${pred}"\n\nСыграй тоже и получи своё: https://para-footwear.github.io/wordle-friends/`;
 
                   if (navigator.clipboard) {
                     navigator.clipboard.writeText(shareText);
