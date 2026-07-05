@@ -1710,40 +1710,6 @@ export default function App() {
                 </p>
               </div>
 
-              {/* 4. STATISTICS CLEAR SECTION */}
-              <div className="space-y-2 border-t border-neutral-100 dark:border-neutral-800 pt-4">
-                <label className="text-xs font-bold font-mono uppercase tracking-wider opacity-60 flex items-center gap-1.5">
-                  <Lock className="w-4 h-4 text-rose-500" />
-                  {lang === 'UA' ? "Небезпечна зона" : "Опасная зона"}
-                </label>
-                <button
-                  onClick={() => {
-                    triggerHaptic(200);
-                    const confirmMsg = lang === 'UA'
-                      ? "Ви впевнені, що хочете повністю видалити статистику для обох мов? Цю дію неможливо скасувати!"
-                      : "Вы уверены, что хотите полностью стереть статистику для обоих языков? Это действие невозможно отменить!";
-                    if (window.confirm(confirmMsg)) {
-                      const keyRU = 'wordle_ru_stats';
-                      const keyUA = 'wordle_ua_stats';
-                      localStorage.removeItem(keyRU);
-                      localStorage.removeItem(keyUA);
-                      setStats(defaultStats);
-                      showToast(
-                        lang === 'UA' ? "Статистику успішно скинуто! 🧹" : "Статистика успешно сброшена! 🧹",
-                        "success"
-                      );
-                    }
-                  }}
-                  className="w-full py-2.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 border border-rose-500/20 hover:border-rose-500/40 font-bold text-xs rounded-xl transition-all cursor-pointer uppercase tracking-wider"
-                >
-                  {lang === 'UA' ? "Скинути всю статистику" : "Сбросить всю статистику"}
-                </button>
-                <p className="text-[10px] opacity-50">
-                  {lang === 'UA' 
-                    ? "Увага: це безповоротно очистить всі ваші рекорди, відсоток перемог та серії ігор." 
-                    : "Внимание: это безвозвратно очистит все ваши рекорды, процент побед и серии игр."}
-                </p>
-              </div>
             </div>
           </div>
         </div>
