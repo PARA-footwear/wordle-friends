@@ -1227,18 +1227,18 @@ export default function App() {
                 const isSpecialKey = key === "ENTER" || key === "BACKSPACE";
                 const status = keyStatuses[key] || null;
                 
-                let keyColorClass = "bg-wordle-border-empty text-neutral-800 hover:bg-neutral-300 active:bg-neutral-400 dark:bg-neutral-800 dark:text-neutral-200 dark:hover:bg-neutral-700 dark:active:bg-neutral-600";
+                let keyColorClass = "bg-wordle-border-empty text-neutral-800 hover:bg-neutral-300 active:bg-neutral-400 dark:bg-neutral-700 dark:text-neutral-50 dark:hover:bg-neutral-600 dark:active:bg-neutral-500";
                 
                 if (status === 'correct') {
                   keyColorClass = "bg-wordle-correct text-white dark:bg-wordle-correct-dark";
                 } else if (status === 'present') {
                   keyColorClass = "bg-wordle-present text-white dark:bg-wordle-present-dark";
                 } else if (status === 'absent') {
-                  keyColorClass = "bg-wordle-absent text-white/90 dark:bg-neutral-900 dark:text-neutral-500";
+                  keyColorClass = "bg-[rgba(160,4,43,0.15)] text-[rgb(160,4,43)] dark:bg-[rgba(160,4,43,0.25)] dark:text-red-400";
                 }
  
                 if (isSpecialKey) {
-                  keyColorClass = "bg-wordle-border-empty text-neutral-800 hover:bg-neutral-300 active:bg-neutral-400 dark:bg-neutral-700 dark:text-neutral-100 dark:hover:bg-neutral-600 px-1 md:px-3 text-[10px] md:text-xs font-bold";
+                  keyColorClass = "bg-wordle-border-empty text-neutral-800 hover:bg-neutral-300 active:bg-neutral-400 dark:bg-neutral-600 dark:text-neutral-50 dark:hover:bg-neutral-500 px-1 md:px-3 text-[10px] md:text-xs font-bold";
                 }
  
                 return (
