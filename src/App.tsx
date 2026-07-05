@@ -21,7 +21,8 @@ import {
   Database,
   CloudLightning,
   UserCheck,
-  Lock
+  Lock,
+  Settings
 } from 'lucide-react';
 import { getRandomWord, isValidWord, getDailyWord, bannedWords } from './words';
 import { saveGameResult, getGameResultsForDate, getAllPlayedDates, PlayerResult } from './firebase';
@@ -168,6 +169,12 @@ function MiniFriendGrid({ player, isDarkMode, lang }: MiniFriendGridProps) {
   );
 }
 
+// Helper: Get today's date string YYYY-MM-DD
+const getTodayDateString = () => {
+  const today = new Date();
+  return today.getFullYear() + '-' + String(today.getMonth() + 1).padStart(2, '0') + '-' + String(today.getDate()).padStart(2, '0');
+};
+
 export default function App() {
   // Language switcher state
   const [lang, setLang] = useState<'RU' | 'UA'>(() => {
@@ -178,9 +185,38 @@ export default function App() {
   // Game state
   const [isOriginalMode, setIsOriginalMode] = useState<boolean>(true); // True means "Слово Дня" (Daily), False means "Случайное" (Random)
   const [targetWord, setTargetWord] = useState<string>(() => getDailyWord(lang));
-  const [guesses, setGuesses] = useState<string[]>([]);
+  
+  // Initialize guesses from localStorage if saved daily state exists for the today's game
+  const [guesses, setGuesses] = useState<string[]>(() => {
+    const todayStr = getTodayDateString();
+    const saved = localStorage.getItem(`wordle_daily_state_${todayStr}_${lang}`);
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (parsed && Array.isArray(parsed.guesses)) {
+          return parsed.guesses;
+        }
+      } catch (e) {}
+    }
+    return [];
+  });
+  
   const [currentGuess, setCurrentGuess] = useState<string>("");
-  const [gameStatus, setGameStatus] = useState<'IN_PROGRESS' | 'WON' | 'LOST'>('IN_PROGRESS');
+  
+  // Initialize gameStatus from localStorage if saved daily state exists for the today's game
+  const [gameStatus, setGameStatus] = useState<'IN_PROGRESS' | 'WON' | 'LOST'>(() => {
+    const todayStr = getTodayDateString();
+    const saved = localStorage.getItem(`wordle_daily_state_${todayStr}_${lang}`);
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (parsed && parsed.gameStatus) {
+          return parsed.gameStatus;
+        }
+      } catch (e) {}
+    }
+    return 'IN_PROGRESS';
+  });
   
   // Custom toast notifications
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
@@ -214,6 +250,8 @@ export default function App() {
   // Modals
   const [showInfoModal, setShowInfoModal] = useState<boolean>(false);
   const [showStatsModal, setShowStatsModal] = useState<boolean>(false);
+  const [showSettingsModal, setShowSettingsModal] = useState<boolean>(false);
+  const [settingsNickInput, setSettingsNickInput] = useState<string>('');
   
   // Row shaking animation
   const [shakingRowIndex, setShakingRowIndex] = useState<number | null>(null);
@@ -280,12 +318,6 @@ export default function App() {
     }
     setStats(defaultStats);
   }, [lang]);
-
-  // Helper: Get today's date string YYYY-MM-DD
-  const getTodayDateString = () => {
-    const today = new Date();
-    return today.getFullYear() + '-' + String(today.getMonth() + 1).padStart(2, '0') + '-' + String(today.getDate()).padStart(2, '0');
-  };
 
   // Helper: Get list of last N dates
   const getPastDates = (numDays: number = 7) => {
@@ -677,7 +709,7 @@ export default function App() {
   // Physical Keyboard Handler Effect
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (showStatsModal || showInfoModal) return;
+      if (showStatsModal || showInfoModal || showArchiveModal || showSettingsModal) return;
       if (gameStatus !== 'IN_PROGRESS') return;
       
       const key = e.key;
@@ -1006,21 +1038,16 @@ export default function App() {
           </button>
           
           <button 
-            id="theme-btn"
-            onClick={() => setIsDarkMode(!isDarkMode)} 
+            id="settings-btn"
+            onClick={() => {
+              triggerHaptic(10);
+              setSettingsNickInput(nickname);
+              setShowSettingsModal(true);
+            }} 
             className={`p-1.5 rounded-lg transition-colors duration-200 ${isDarkMode ? 'hover:bg-neutral-900 text-neutral-400 hover:text-neutral-200' : 'hover:bg-slate-100 text-slate-500 hover:text-slate-800'}`}
-            title={isDarkMode ? (lang === 'UA' ? "Світла тема" : "Светлая тема") : (lang === 'UA' ? "Темна тема" : "Темная тема")}
+            title={lang === 'UA' ? "Налаштування" : "Настройки"}
           >
-            {isDarkMode ? <Sun className="w-5 h-5 md:w-6 md:h-6 text-amber-400" /> : <Moon className="w-5 h-5 md:w-6 md:h-6" />}
-          </button>
-
-          <button 
-            id="reset-btn"
-            onClick={() => handleResetGame(false)} 
-            className={`p-1.5 rounded-lg transition-colors duration-200 ${isDarkMode ? 'hover:bg-neutral-900 text-neutral-400 hover:text-neutral-200' : 'hover:bg-slate-100 text-slate-500 hover:text-slate-800'}`}
-            title={lang === 'UA' ? "Скинути до Слова Дня" : "Сбросить к Слову Дня"}
-          >
-            <RotateCcw className="w-5 h-5 md:w-5 md:h-5 text-rose-500" />
+            <Settings className="w-5 h-5 md:w-6 md:h-6" />
           </button>
         </div>
       </header>
@@ -1539,6 +1566,185 @@ export default function App() {
                 </div>
               </>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* SETTINGS MODAL */}
+      {showSettingsModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs select-none animate-fadeIn">
+          <div className={`w-full max-w-md rounded-3xl p-6 md:p-8 shadow-2xl relative border animate-pop max-h-[90vh] overflow-y-auto
+            ${isDarkMode ? 'bg-neutral-900 border-neutral-800 text-neutral-100' : 'bg-white border-slate-100 text-slate-800'}`}
+          >
+            <button 
+              id="close-settings-btn"
+              onClick={() => { triggerHaptic(10); setShowSettingsModal(false); }}
+              className="absolute top-4 right-4 p-1.5 rounded-full hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 transition-colors"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <h3 className="font-display font-extrabold text-2xl mb-6 text-center tracking-tight flex items-center justify-center gap-2">
+              <Settings className="w-6 h-6 text-emerald-500 animate-spin-slow" />
+              {lang === 'UA' ? "Налаштування ⚙️" : "Настройки ⚙️"}
+            </h3>
+
+            <div className="space-y-6">
+              {/* 1. NICKNAME CHANGE SECTION */}
+              <div className="space-y-2">
+                <label className="text-xs font-bold font-mono uppercase tracking-wider opacity-60 flex items-center gap-1.5">
+                  <UserCheck className="w-4 h-4 text-emerald-500" />
+                  {lang === 'UA' ? "Ваш нікнейм" : "Ваш никнейм"}
+                </label>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={settingsNickInput}
+                    onChange={(e) => setSettingsNickInput(e.target.value.slice(0, 25))}
+                    placeholder={lang === 'UA' ? "Введіть нікнейм..." : "Введите никнейм..."}
+                    className={`flex-1 px-3 py-2 rounded-xl border outline-none font-bold text-sm transition-all duration-150
+                      ${isDarkMode 
+                        ? 'bg-neutral-950 border-neutral-800 text-white focus:border-emerald-500' 
+                        : 'bg-neutral-50 border-slate-200 text-slate-800 focus:border-emerald-500'}`}
+                  />
+                  <button
+                    onClick={() => {
+                      triggerHaptic(10);
+                      const trimmed = settingsNickInput.trim().slice(0, 25);
+                      if (trimmed) {
+                        localStorage.setItem('wordle_ru_nickname', trimmed);
+                        setNickname(trimmed);
+                        setNickInput(trimmed);
+                        showToast(
+                          lang === 'UA' 
+                            ? `Нікнейм змінено на "${trimmed}"! ✨` 
+                            : `Никнейм изменен на "${trimmed}"! ✨`,
+                          "success"
+                        );
+                      } else {
+                        showToast(
+                          lang === 'UA' 
+                            ? "Нікнейм не може бути порожнім! ❌" 
+                            : "Никнейм не может быть пустым! ❌",
+                          "error"
+                        );
+                      }
+                    }}
+                    className="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 dark:bg-emerald-600 dark:hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-sm transition-all cursor-pointer uppercase tracking-wider"
+                  >
+                    {lang === 'UA' ? "Зберегти" : "Сохранить"}
+                  </button>
+                </div>
+                <p className="text-[10px] opacity-50">
+                  {lang === 'UA' 
+                    ? "Максимум 25 символів. Використовується в таблиці результатів друзів." 
+                    : "Максимум 25 символов. Используется в таблице результатов друзей."}
+                </p>
+              </div>
+
+              {/* 2. THEME SELECTION SECTION */}
+              <div className="space-y-2 border-t border-neutral-100 dark:border-neutral-800 pt-4">
+                <label className="text-xs font-bold font-mono uppercase tracking-wider opacity-60 flex items-center gap-1.5">
+                  {isDarkMode ? <Moon className="w-4 h-4 text-emerald-500" /> : <Sun className="w-4 h-4 text-emerald-500" />}
+                  {lang === 'UA' ? "Тема оформлення" : "Тема оформления"}
+                </label>
+                <div className="flex bg-neutral-100 dark:bg-neutral-950 rounded-xl p-1 border border-neutral-200/50 dark:border-neutral-800/50">
+                  <button
+                    onClick={() => { triggerHaptic(10); setIsDarkMode(false); }}
+                    className={`flex-1 py-2 rounded-lg font-bold text-xs flex items-center justify-center gap-2 transition-all duration-150
+                      ${!isDarkMode 
+                        ? 'bg-white text-slate-800 shadow-sm' 
+                        : 'text-neutral-400 hover:text-neutral-200'}`}
+                  >
+                    <Sun className="w-4 h-4 text-amber-500" />
+                    {lang === 'UA' ? "Світла" : "Светлая"}
+                  </button>
+                  <button
+                    onClick={() => { triggerHaptic(10); setIsDarkMode(true); }}
+                    className={`flex-1 py-2 rounded-lg font-bold text-xs flex items-center justify-center gap-2 transition-all duration-150
+                      ${isDarkMode 
+                        ? 'bg-neutral-800 text-white shadow-sm' 
+                        : 'text-slate-500 hover:text-slate-700'}`}
+                  >
+                    <Moon className="w-4 h-4 text-indigo-400" />
+                    {lang === 'UA' ? "Темна" : "Темная"}
+                  </button>
+                </div>
+              </div>
+
+              {/* 3. RESET CURRENT WORD (RESTART GAME) SECTION */}
+              <div className="space-y-2 border-t border-neutral-100 dark:border-neutral-800 pt-4">
+                <label className="text-xs font-bold font-mono uppercase tracking-wider opacity-60 flex items-center gap-1.5">
+                  <RotateCcw className="w-4 h-4 text-emerald-500" />
+                  {lang === 'UA' ? "Перезапуск поточної гри" : "Перезапуск текущей игры"}
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    onClick={() => {
+                      triggerHaptic(50);
+                      handleResetGame(false);
+                      setShowSettingsModal(false);
+                    }}
+                    className={`py-2.5 rounded-xl font-bold text-xs uppercase tracking-wider transition-all duration-150 border cursor-pointer
+                      ${isDarkMode 
+                        ? 'bg-neutral-950 border-neutral-800 hover:bg-neutral-800 text-neutral-300' 
+                        : 'bg-white border-slate-200 hover:bg-slate-50 text-slate-700'}`}
+                  >
+                    {lang === 'UA' ? "До Слово Дня" : "К Слову Дня"}
+                  </button>
+                  <button
+                    onClick={() => {
+                      triggerHaptic(50);
+                      handleResetGame(true);
+                      setShowSettingsModal(false);
+                    }}
+                    className="py-2.5 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white font-bold text-xs rounded-xl shadow-sm transition-all cursor-pointer uppercase tracking-wider"
+                  >
+                    {lang === 'UA' ? "Випадкове" : "Случайное"}
+                  </button>
+                </div>
+                <p className="text-[10px] opacity-50">
+                  {lang === 'UA' 
+                    ? "Скинути ігрову сітку та загадати нове випадкове слово або повернутися до загального Слова Дня." 
+                    : "Сбросить игровую сетку и загадать новое случайное слово или вернуться к общему Слову Дня."}
+                </p>
+              </div>
+
+              {/* 4. STATISTICS CLEAR SECTION */}
+              <div className="space-y-2 border-t border-neutral-100 dark:border-neutral-800 pt-4">
+                <label className="text-xs font-bold font-mono uppercase tracking-wider opacity-60 flex items-center gap-1.5">
+                  <Lock className="w-4 h-4 text-rose-500" />
+                  {lang === 'UA' ? "Небезпечна зона" : "Опасная зона"}
+                </label>
+                <button
+                  onClick={() => {
+                    triggerHaptic(200);
+                    const confirmMsg = lang === 'UA'
+                      ? "Ви впевнені, що хочете повністю видалити статистику для обох мов? Цю дію неможливо скасувати!"
+                      : "Вы уверены, что хотите полностью стереть статистику для обоих языков? Это действие невозможно отменить!";
+                    if (window.confirm(confirmMsg)) {
+                      const keyRU = 'wordle_ru_stats';
+                      const keyUA = 'wordle_ua_stats';
+                      localStorage.removeItem(keyRU);
+                      localStorage.removeItem(keyUA);
+                      setStats(defaultStats);
+                      showToast(
+                        lang === 'UA' ? "Статистику успішно скинуто! 🧹" : "Статистика успешно сброшена! 🧹",
+                        "success"
+                      );
+                    }
+                  }}
+                  className="w-full py-2.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 border border-rose-500/20 hover:border-rose-500/40 font-bold text-xs rounded-xl transition-all cursor-pointer uppercase tracking-wider"
+                >
+                  {lang === 'UA' ? "Скинути всю статистику" : "Сбросить всю статистику"}
+                </button>
+                <p className="text-[10px] opacity-50">
+                  {lang === 'UA' 
+                    ? "Увага: це безповоротно очистить всі ваші рекорди, відсоток перемог та серії ігор." 
+                    : "Внимание: это безвозвратно очистит все ваши рекорды, процент побед и серии игр."}
+                </p>
+              </div>
+            </div>
           </div>
         </div>
       )}
