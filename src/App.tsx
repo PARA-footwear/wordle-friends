@@ -26,6 +26,7 @@ import {
 } from 'lucide-react';
 import { getRandomWord, isValidWord, getDailyWord, bannedWords } from './words';
 import { saveGameResult, getGameResultsForDate, getAllPlayedDates, PlayerResult } from './firebase';
+import { PREDICTIONS_RU, PREDICTIONS_UA, getDailyPredictionIndex } from './predictions';
 
 
 interface GameStats {
@@ -252,6 +253,44 @@ export default function App() {
   const [showStatsModal, setShowStatsModal] = useState<boolean>(false);
   const [showSettingsModal, setShowSettingsModal] = useState<boolean>(false);
   const [settingsNickInput, setSettingsNickInput] = useState<string>('');
+  const [showPredictionModal, setShowPredictionModal] = useState<boolean>(false);
+  const [solvedWordsToday, setSolvedWordsToday] = useState<string[]>(() => {
+    const todayStr = getTodayDateString();
+    const saved = localStorage.getItem(`wordle_solved_words_list_${todayStr}`);
+    let list: string[] = [];
+    if (saved) {
+      try {
+        list = JSON.parse(saved);
+        if (!Array.isArray(list)) list = [];
+      } catch (e) {}
+    }
+    
+    // Auto-populate from daily games if they were won
+    const dailyRuWord = getDailyWord('RU');
+    const savedRu = localStorage.getItem(`wordle_daily_state_${todayStr}_RU`);
+    if (savedRu) {
+      try {
+        const parsed = JSON.parse(savedRu);
+        if (parsed && parsed.gameStatus === 'WON' && !list.includes(dailyRuWord.toUpperCase())) {
+          list.push(dailyRuWord.toUpperCase());
+        }
+      } catch (e) {}
+    }
+
+    const dailyUaWord = getDailyWord('UA');
+    const savedUa = localStorage.getItem(`wordle_daily_state_${todayStr}_UA`);
+    if (savedUa) {
+      try {
+        const parsed = JSON.parse(savedUa);
+        if (parsed && parsed.gameStatus === 'WON' && !list.includes(dailyUaWord.toUpperCase())) {
+          list.push(dailyUaWord.toUpperCase());
+        }
+      } catch (e) {}
+    }
+
+    localStorage.setItem(`wordle_solved_words_list_${todayStr}`, JSON.stringify(list));
+    return list;
+  });
   
   // Row shaking animation
   const [shakingRowIndex, setShakingRowIndex] = useState<number | null>(null);
@@ -365,18 +404,22 @@ export default function App() {
   };
 
   // Helper: Upload result for today
-  const uploadDailyResult = async (finalGuesses: string[], isWon: boolean) => {
+  const uploadDailyResult = async (finalGuesses: string[], isWon: boolean, silent = false) => {
     if (!isOriginalMode) return;
     if (!nickname) return;
     setIsSavingResult(true);
     try {
       const todayStr = getTodayDateString();
       await saveGameResult(todayStr, nickname, finalGuesses, isWon, lang, targetWord);
-      showToast(lang === 'UA' ? "Результати збережено в хмарі! ☁️" : "Результаты сохранены в облако! ☁️", "success");
+      if (!silent) {
+        showToast(lang === 'UA' ? "Результати збережено в хмарі! ☁️" : "Результаты сохранены в облако! ☁️", "success");
+      }
       await loadFriendsResults();
     } catch (error) {
       console.error("Error saving result to Firestore:", error);
-      showToast(lang === 'UA' ? "Помилка збереження в хмару ❌" : "Ошибка сохранения в облако ❌", "error");
+      if (!silent) {
+        showToast(lang === 'UA' ? "Помилка збереження в хмару ❌" : "Ошибка сохранения в облако ❌", "error");
+      }
     } finally {
       setIsSavingResult(false);
     }
@@ -430,7 +473,7 @@ export default function App() {
       const uploadKey = `wordle_ru_uploaded_${todayStr}_${lang}_${nickname}`;
       const alreadyUploaded = localStorage.getItem(uploadKey);
       if (!alreadyUploaded) {
-        uploadDailyResult(guesses, gameStatus === 'WON');
+        uploadDailyResult(guesses, gameStatus === 'WON', true);
         localStorage.setItem(uploadKey, 'true');
       }
     }
@@ -487,7 +530,7 @@ export default function App() {
     setToast({ message, type });
     toastTimeoutRef.current = setTimeout(() => {
       setToast(null);
-    }, 2500);
+    }, 4500);
   };
 
   // Sound/Vibration feedback (mobile-friendly)
@@ -499,6 +542,25 @@ export default function App() {
         // Ignore haptic errors on unsupported/unpermitted browsers
       }
     }
+  };
+
+  const registerSolvedWord = (word: string) => {
+    const todayStr = getTodayDateString();
+    const wordUpper = word.toUpperCase();
+    setSolvedWordsToday(prev => {
+      if (prev.includes(wordUpper)) return prev;
+      const updated = [...prev, wordUpper];
+      localStorage.setItem(`wordle_solved_words_list_${todayStr}`, JSON.stringify(updated));
+      
+      // If they just guessed their 2nd word today, automatically trigger the prediction modal!
+      if (updated.length === 2) {
+        setTimeout(() => {
+          setShowPredictionModal(true);
+          triggerHaptic([100, 50, 100]);
+        }, 3200);
+      }
+      return updated;
+    });
   };
 
   // Keyboard layout rows (ЙЦУКЕН / UA layout)
@@ -643,23 +705,50 @@ export default function App() {
     if (uppercaseGuess === targetWord) {
       setGameStatus('WON');
       updateStats(true, newGuesses.length);
-      uploadDailyResult(newGuesses, true);
+      uploadDailyResult(newGuesses, true, true);
+      registerSolvedWord(targetWord);
 
-      const message = lang === 'UA' 
-        ? "Вітаємо! Ви відгадали слово! 🎉" 
-        : "Поздравляем! Вы угадали слово! 🎉";
+      let message = "";
+      const attempts = newGuesses.length;
+
+      if (lang === 'UA') {
+        if (attempts === 1) {
+          message = "чітер, кого ти намагаєшся наїбати 😒";
+        } else if (attempts === 2) {
+          message = "та ну нахуй, це потужно 🤯";
+        } else if (attempts === 3) {
+          message = "маладець, маладець 😎";
+        } else if (attempts === 4 || attempts === 5) {
+          message = "непогано, але старайся краще 😏";
+        } else {
+          message = "мда, з шостої спроби будь-який дурень відгадає 🤡";
+        }
+      } else {
+        if (attempts === 1) {
+          message = "читер, кого ты пытаешься наебать 😒";
+        } else if (attempts === 2) {
+          message = "да ну нахуй, это потужно 🤯";
+        } else if (attempts === 3) {
+          message = "маладец, маладец 😎";
+        } else if (attempts === 4 || attempts === 5) {
+          message = "неплохо но старайся лучше 😏";
+        } else {
+          message = "мда, с шестой попытки любой дурак отгадает 🤡";
+        }
+      }
+
       showToast(message, "success");
-      setTimeout(() => setShowStatsModal(true), 1500);
+      setTimeout(() => setShowStatsModal(true), 4500);
     } else if (newGuesses.length >= 6) {
       setGameStatus('LOST');
       updateStats(false, 6);
-      uploadDailyResult(newGuesses, false);
+      uploadDailyResult(newGuesses, false, true);
 
       const message = lang === 'UA'
-        ? `Ви не відгадали. Загадане слово: ${targetWord} 🥺`
-        : `Вы не отгадали. Загаданное слово: ${targetWord} 🥺`;
+        ? `ганьба, соромно бути тобою (загадане слово: ${targetWord}) 🤦‍♂️`
+        : `позор, стыдно быть тобой (загаданное слово: ${targetWord}) 🤦‍♂️`;
       showToast(message, "error");
-      setTimeout(() => setShowStatsModal(true), 2000);
+      setTimeout(() => setShowStatsModal(true), 4500);
     }
   };
 
@@ -934,16 +1023,19 @@ export default function App() {
     >
       {/* Toast Notification */}
       {toast && (
-        <div className={`fixed top-20 left-1/2 -translate-x-1/2 z-50 px-4 py-2.5 rounded-xl shadow-xl flex items-center gap-2 font-medium text-sm md:text-base border transition-all duration-300 animate-pop
-          ${toast.type === 'success' 
-            ? 'bg-emerald-50 border-emerald-200 text-emerald-800 dark:bg-emerald-950/90 dark:border-emerald-800 dark:text-emerald-300' 
-            : toast.type === 'error'
-              ? 'bg-rose-50 border-rose-200 text-rose-800 dark:bg-rose-950/90 dark:border-rose-950 dark:text-rose-300'
-              : 'bg-slate-100 border-slate-300 text-slate-800 dark:bg-neutral-800 dark:border-neutral-700 dark:text-neutral-100'
-          }`}
-        >
-          {toast.type === 'success' && <Sparkles className="w-4 h-4 text-emerald-500 animate-bounce" />}
-          <span>{toast.message}</span>
+        <div className="fixed top-24 left-0 right-0 z-[1000] flex justify-center pointer-events-none px-4">
+          <div className={`pointer-events-auto px-5 py-3 rounded-2xl shadow-2xl flex items-center gap-2.5 font-semibold text-sm md:text-base border transition-all duration-300 animate-pop max-w-sm md:max-w-md text-center justify-center
+            ${toast.type === 'success' 
+              ? 'bg-emerald-500 text-white border-emerald-400 dark:bg-emerald-600 dark:border-emerald-500' 
+              : toast.type === 'error'
+                ? 'bg-rose-500 text-white border-rose-400 dark:bg-rose-600 dark:border-rose-500'
+                : 'bg-neutral-900 text-white border-neutral-800 dark:bg-neutral-800 dark:border-neutral-700'
+            }`}
+          >
+            {toast.type === 'success' && <Sparkles className="w-5 h-5 text-yellow-300 animate-bounce shrink-0" />}
+            {toast.type === 'error' && <span className="text-lg shrink-0">⚠️</span>}
+            <span className="leading-tight">{toast.message}</span>
+          </div>
         </div>
       )}
 
@@ -1026,6 +1118,40 @@ export default function App() {
             title={lang === 'UA' ? "Архів ігор" : "Архив игр"}
           >
             <Calendar className="w-5 h-5 md:w-6 md:h-6" />
+          </button>
+
+          {/* Daily Prediction Crystal Ball Button */}
+          <button 
+            id="prediction-btn"
+            onClick={() => {
+              triggerHaptic(15);
+              if (solvedWordsToday.length >= 2) {
+                setShowPredictionModal(true);
+              } else {
+                const wordsLeft = 2 - solvedWordsToday.length;
+                const msg = lang === 'UA' 
+                  ? `Відгадайте ще ${wordsLeft} ${wordsLeft === 1 ? 'слово' : 'слова'} сьогодні, щоб отримати передбачення! 🔮` 
+                  : `Отгадайте еще ${wordsLeft} ${wordsLeft === 1 ? 'слово' : 'слова'} сегодня, чтобы получить предсказание! 🔮`;
+                showToast(msg, "info");
+              }
+            }} 
+            className={`p-1.5 rounded-lg transition-all duration-300 relative flex items-center justify-center border
+              ${solvedWordsToday.length >= 2 
+                ? 'bg-purple-500/15 hover:bg-purple-500/25 border-purple-500/30 text-purple-500 animate-pulse-slow shadow-md shadow-purple-500/10' 
+                : 'bg-transparent border-transparent text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300'}`}
+            title={lang === 'UA' ? "Передбачення на день" : "Предсказание на день"}
+          >
+            <span className="text-lg md:text-xl leading-none">🔮</span>
+            {solvedWordsToday.length < 2 && (
+              <span className="absolute -top-1 -right-1 bg-neutral-200 dark:bg-neutral-800 text-[8px] font-black px-1.5 py-0.2 rounded-full border border-neutral-300 dark:border-neutral-700">
+                {solvedWordsToday.length}/2
+              </span>
+            )}
+            {solvedWordsToday.length >= 2 && (
+              <span className="absolute -top-1 -right-1 bg-purple-500 text-white text-[8px] font-black px-1.5 py-0.2 rounded-full animate-bounce">
+                ✨
+              </span>
+            )}
           </button>
 
           <button 
@@ -1332,6 +1458,56 @@ export default function App() {
                   </div>
                 );
               })}
+            </div>
+
+            {/* Daily Prediction Info Block in Stats */}
+            <div className={`p-4 rounded-2xl mb-6 border text-center transition-all duration-200
+              ${solvedWordsToday.length >= 2
+                ? 'bg-purple-500/10 border-purple-500/30 text-purple-950 dark:text-purple-300'
+                : 'bg-neutral-50 dark:bg-neutral-950/40 border-neutral-200 dark:border-neutral-800 opacity-80'}`}
+            >
+              <div className="flex items-center justify-center gap-2 mb-1.5">
+                <span className="text-xl">🔮</span>
+                <h4 className="font-bold text-xs uppercase tracking-wider font-display">
+                  {lang === 'UA' ? "Передбачення на день" : "Предсказание на день"}
+                </h4>
+              </div>
+
+              {solvedWordsToday.length >= 2 ? (
+                <div>
+                  <p className="text-xs italic mb-3 opacity-90 px-2 line-clamp-2">
+                    "{lang === 'UA' 
+                      ? PREDICTIONS_UA[getDailyPredictionIndex(getTodayDateString(), nickname)]
+                      : PREDICTIONS_RU[getDailyPredictionIndex(getTodayDateString(), nickname)]
+                    }"
+                  </p>
+                  <button
+                    onClick={() => {
+                      triggerHaptic(15);
+                      setShowStatsModal(false);
+                      setShowPredictionModal(true);
+                    }}
+                    className="px-4 py-1.5 bg-purple-500 hover:bg-purple-600 dark:bg-purple-600 dark:hover:bg-purple-700 text-white font-bold text-xs rounded-lg shadow-xs cursor-pointer tracking-wide uppercase"
+                  >
+                    {lang === 'UA' ? "Читати повністю ✨" : "Читать полностью ✨"}
+                  </button>
+                </div>
+              ) : (
+                <div>
+                  <p className="text-xs opacity-70 mb-3 leading-relaxed max-w-xs mx-auto">
+                    {lang === 'UA'
+                      ? `Відгадайте 2 слова сьогодні, щоб отримати передбачення! Вже відгадано: ${solvedWordsToday.length}/2`
+                      : `Отгадайте 2 слова сегодня, чтобы получить предсказание! Уже отгадано: ${solvedWordsToday.length}/2`}
+                  </p>
+                  {/* Progress bar */}
+                  <div className="w-full max-w-[200px] mx-auto h-2 bg-neutral-200 dark:bg-neutral-800 rounded-full overflow-hidden mb-1">
+                    <div 
+                      style={{ width: `${(solvedWordsToday.length / 2) * 100}%` }}
+                      className="h-full bg-gradient-to-r from-purple-500 to-indigo-500 transition-all duration-500"
+                    />
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Game Over Action Panel */}
@@ -1710,6 +1886,99 @@ export default function App() {
                 </p>
               </div>
 
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* DAILY PREDICTION MODAL */}
+      {showPredictionModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-md select-none animate-fadeIn">
+          <div className={`w-full max-w-md rounded-3xl p-6 md:p-8 shadow-2xl relative border animate-pop max-h-[90vh] overflow-y-auto text-center
+            ${isDarkMode 
+              ? 'bg-gradient-to-b from-neutral-900 to-neutral-950 border-purple-900/40 text-neutral-100' 
+              : 'bg-gradient-to-b from-white to-purple-50/30 border-purple-200 text-slate-800'}`}
+          >
+            <button 
+              id="close-prediction-btn"
+              onClick={() => { triggerHaptic(10); setShowPredictionModal(false); }}
+              className="absolute top-4 right-4 p-1.5 rounded-full hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 transition-colors"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            {/* Glowing Icon Header */}
+            <div className="flex flex-col items-center mt-2 mb-4">
+              <div className="w-16 h-16 rounded-full bg-purple-500/10 flex items-center justify-center border border-purple-500/20 shadow-lg shadow-purple-500/10 mb-3 animate-pulse-slow">
+                <span className="text-3xl">🔮</span>
+              </div>
+              <h3 className="font-display font-black text-2xl tracking-tight bg-gradient-to-r from-purple-500 via-pink-500 to-indigo-500 bg-clip-text text-transparent">
+                {lang === 'UA' ? "Передбачення на день" : "Предсказание на день"}
+              </h3>
+              <p className="text-[10px] font-mono uppercase tracking-wider opacity-50 mt-1">
+                {getTodayDateString()}
+              </p>
+            </div>
+
+            {/* Prediction Text Container */}
+            <div className={`p-6 md:p-8 rounded-2xl border text-base md:text-lg font-medium leading-relaxed italic relative mb-6 shadow-inner
+              ${isDarkMode 
+                ? 'bg-neutral-950/60 border-purple-900/30 text-purple-200' 
+                : 'bg-purple-100/40 border-purple-200/50 text-purple-950'}`}
+            >
+              <span className="absolute -top-3 left-4 text-3xl font-serif text-purple-500/20">“</span>
+              <p className="relative z-10 px-2 font-display">
+                {lang === 'UA' 
+                  ? PREDICTIONS_UA[getDailyPredictionIndex(getTodayDateString(), nickname)]
+                  : PREDICTIONS_RU[getDailyPredictionIndex(getTodayDateString(), nickname)]
+                }
+              </p>
+              <span className="absolute -bottom-7 right-4 text-3xl font-serif text-purple-500/20">”</span>
+            </div>
+
+            {/* Solved Words Today Tracker */}
+            <div className="mb-6">
+              <div className="text-[11px] font-mono uppercase tracking-wider opacity-60 mb-2">
+                {lang === 'UA' ? "Сьогоднішні відгадані слова:" : "Сегодняшние угаданные слова:"}
+              </div>
+              <div className="flex flex-wrap gap-1.5 justify-center">
+                {solvedWordsToday.map((w, idx) => (
+                  <span 
+                    key={idx} 
+                    className="px-2.5 py-1 rounded-lg text-xs font-black tracking-widest bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 font-mono uppercase"
+                  >
+                    ✅ {w}
+                  </span>
+                ))}
+              </div>
+            </div>
+
+            {/* Actions Panel */}
+            <div className="space-y-3 pt-2 border-t border-neutral-100 dark:border-neutral-800">
+              <button
+                onClick={() => {
+                  triggerHaptic(20);
+                  const pred = lang === 'UA' 
+                    ? PREDICTIONS_UA[getDailyPredictionIndex(getTodayDateString(), nickname)]
+                    : PREDICTIONS_RU[getDailyPredictionIndex(getTodayDateString(), nickname)];
+                  
+                  const shareText = lang === 'UA'
+                    ? `🔮 Моє передбачення у Вордлі на сьогодні:\n"${pred}"\n\nЗіграй теж і отримай своє: ${window.location.origin}`
+                    : `🔮 Моё предсказание в Вордли на сегодня:\n"${pred}"\n\nСыграй тоже и получи своё: ${window.location.origin}`;
+
+                  if (navigator.clipboard) {
+                    navigator.clipboard.writeText(shareText);
+                    showToast(
+                      lang === 'UA' ? "Скопійовано в буфер обміну! 📋" : "Скопировано в буфер обмена! 📋",
+                      "success"
+                    );
+                  }
+                }}
+                className="w-full py-3 bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-600 hover:to-indigo-700 text-white font-bold rounded-xl shadow-md transition-all duration-150 flex items-center justify-center gap-2 text-xs uppercase tracking-wider cursor-pointer animate-pulse-slow"
+              >
+                <Share2 className="w-4 h-4" />
+                {lang === 'UA' ? "Поділитися передбаченням" : "Поделиться предсказанием"}
+              </button>
             </div>
           </div>
         </div>
