@@ -252,10 +252,16 @@ export const PREDICTIONS_UA = [
 
 export const getDailyPredictionIndex = (dateStr: string, nickname?: string): number => {
   const input = `${dateStr}_${(nickname || '').trim().toLowerCase()}`;
-  let hash = 0;
+  let hash = 2166136261;
   for (let i = 0; i < input.length; i++) {
-    hash = (hash << 5) - hash + input.charCodeAt(i);
-    hash |= 0;
+    hash ^= input.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
   }
-  return Math.abs(hash) % PREDICTIONS_RU.length;
+  hash += hash << 13;
+  hash ^= hash >> 7;
+  hash += hash << 3;
+  hash ^= hash >> 17;
+  hash += hash << 5;
+  hash = hash >>> 0;
+  return hash % PREDICTIONS_RU.length;
 };

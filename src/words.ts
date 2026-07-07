@@ -10772,12 +10772,21 @@ export function getDailyWord(lang: 'RU' | 'UA'): string {
   const today = new Date();
   const dateStr = today.getFullYear() + '-' + String(today.getMonth() + 1).padStart(2, '0') + '-' + String(today.getDate()).padStart(2, '0');
   
-  // Deterministic seed hashing
-  let hash = 0;
+  // Deterministic seed hashing with FNV-1a and bit mixing (avalanche mix) to prevent sequential values
+  let hash = 2166136261;
   for (let i = 0; i < dateStr.length; i++) {
-    hash = dateStr.charCodeAt(i) + ((hash << 5) - hash);
+    hash ^= dateStr.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
   }
   
-  const index = Math.abs(hash) % filteredList.length;
+  // High-quality 32-bit mixing to ensure consecutive dates map to vastly different indices (avalanche effect)
+  hash += hash << 13;
+  hash ^= hash >> 7;
+  hash += hash << 3;
+  hash ^= hash >> 17;
+  hash += hash << 5;
+  hash = hash >>> 0;
+  
+  const index = hash % filteredList.length;
   return filteredList[index].toUpperCase();
 }
