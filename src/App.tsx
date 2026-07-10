@@ -407,10 +407,16 @@ export default function App() {
   const uploadDailyResult = async (finalGuesses: string[], isWon: boolean, silent = false) => {
     if (!isOriginalMode) return;
     if (!nickname) return;
+    
+    const todayStr = getTodayDateString();
+    const uploadKey = `wordle_ru_uploaded_${todayStr}_${lang}_${nickname}`;
+    const alreadyUploaded = localStorage.getItem(uploadKey);
+    if (alreadyUploaded) return; // Prevent duplicate uploads
+
     setIsSavingResult(true);
     try {
-      const todayStr = getTodayDateString();
       await saveGameResult(todayStr, nickname, finalGuesses, isWon, lang, targetWord);
+      localStorage.setItem(uploadKey, 'true');
       if (!silent) {
         showToast(lang === 'UA' ? "Результати збережено в хмарі! ☁️" : "Результаты сохранены в облако! ☁️", "success");
       }
