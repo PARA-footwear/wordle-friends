@@ -1,6 +1,11 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+    // Match any document in the 'results' collection group
+    match /{path=**}/results/{nickname} {
+      allow read, write: if true;
+    }
+
     match /dates/{date}/results/{nickname} {
       allow read, write: if true;
     }
